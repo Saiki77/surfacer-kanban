@@ -1,0 +1,9 @@
+{
+  "id": "surfacer-kanban",
+  "name": "Surfacer Kanban",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Markdown-backed kanban boards with drag-and-drop, tags, assignees, and due dates",
+  "author": "Surfacer",
+  "isDesktopOnly": false
+}
