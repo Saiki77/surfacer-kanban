@@ -101,7 +101,8 @@ export default class SurfacerKanbanPlugin extends Plugin {
   private async toggleView(): Promise<void> {
     const kanbanView = this.app.workspace.getActiveViewOfType(KanbanView);
     if (kanbanView && kanbanView.file) {
-      // Switch to markdown
+      // Save board state to disk, then switch to markdown
+      await kanbanView.saveToFile();
       await kanbanView.leaf.setViewState({
         type: "markdown",
         state: { file: kanbanView.file.path, mode: "source" },

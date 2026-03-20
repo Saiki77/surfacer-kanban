@@ -4,6 +4,7 @@ import {
   KanbanColumn,
   KanbanCard,
   VIEW_TYPE_KANBAN,
+  COLOR_PALETTES,
 } from "./types";
 import { parseKanban, serializeKanban } from "./parser";
 import { CardDetailModal } from "./card-modal";
@@ -16,6 +17,7 @@ export class KanbanView extends TextFileView {
   private boardEl!: HTMLElement;
   private toolbarEl!: HTMLElement;
   private didDrag = false;
+  private isEditing = false; // Prevents re-render while user is typing
 
   constructor(leaf: WorkspaceLeaf, plugin: SurfacerKanbanPlugin) {
     super(leaf);
@@ -62,11 +64,22 @@ export class KanbanView extends TextFileView {
   }
 
   getViewData(): string {
-    if (!this.board) return this.data;
-    return serializeKanban(this.board);
+    if (this.board) {
+      this.data = serializeKanban(this.board);
+    }
+    return this.data;
+  }
+
+  /** Persist current board state to the file on disk */
+  async saveToFile(): Promise<void> {
+    if (!this.file || !this.board) return;
+    this.data = serializeKanban(this.board);
+    await this.app.vault.modify(this.file, this.data);
   }
 
   setViewData(data: string, clear: boolean): void {
+    // Don't re-render if user is actively editing an input
+    if (this.isEditing) return;
     this.data = data;
     this.board = parseKanban(data);
     this.renderBoard();
@@ -159,35 +172,54 @@ export class KanbanView extends TextFileView {
     cardEl.dataset.cardId = card.id;
     cardEl.draggable = true;
 
-    // Color left border
-    if (card.metadata.colorTags.length > 0) {
-      const colorName = card.metadata.colorTags[0];
-      const color = this.plugin.settings.colorPresets[colorName];
-      if (color) {
-        cardEl.style.borderLeftColor = color;
-        cardEl.addClass("kanban-card-colored");
-      }
+    // Resolve color palette
+    const colorName = card.metadata.colorTags.length > 0 ? card.metadata.colorTags[0] : null;
+    const pal = colorName ? COLOR_PALETTES[colorName] ?? null : null;
+
+    if (pal) {
+      // Set CSS custom props — CSS handles light/dark theming via these
+      cardEl.style.setProperty("--card-r", String(pal.r));
+      cardEl.style.setProperty("--card-g", String(pal.g));
+      cardEl.style.setProperty("--card-b", String(pal.b));
+      cardEl.style.setProperty("--card-border", pal.border);
+      cardEl.style.setProperty("--card-title-light", pal.titleLight);
+      cardEl.style.setProperty("--card-title-dark", pal.titleDark);
+      cardEl.addClass("kanban-card-colored");
     }
 
     // Title
-    cardEl.createDiv({ text: card.title, cls: "kanban-card-title" });
+    const titleEl = cardEl.createDiv({ cls: "kanban-card-title" });
+    titleEl.setText(card.title);
 
-    // Tags
-    if (card.metadata.tags.length > 0) {
-      const tagsEl = cardEl.createDiv({ cls: "kanban-card-tags" });
-      for (const tag of card.metadata.tags) {
-        tagsEl.createEl("span", { text: `#${tag}`, cls: "kanban-tag" });
-      }
+    // Due date as subtitle (below title, like "5:00 - 6:00 pm" in reference)
+    if (card.metadata.dueDate) {
+      const dueEl = cardEl.createDiv({ cls: "kanban-card-due" });
+      const isOverdue =
+        new Date(card.metadata.dueDate) < new Date(new Date().toDateString());
+      if (isOverdue) dueEl.addClass("kanban-due-overdue");
+      dueEl.setText(card.metadata.dueDate);
     }
 
-    // Bottom row
+    // Badge top-right (subtask progress, like "1h" in reference)
+    if (card.subtasks.length > 0 && this.plugin.settings.showSubtaskProgress) {
+      const done = card.subtasks.filter((s) => s.completed).length;
+      const badge = cardEl.createDiv({ cls: "kanban-card-badge" });
+      badge.setText(`${done}/${card.subtasks.length}`);
+    }
+
+    // Bottom row: tags, assignees, description indicator
     const hasBottom =
+      card.metadata.tags.length > 0 ||
       card.metadata.assignees.length > 0 ||
-      card.metadata.dueDate ||
-      (card.subtasks.length > 0 && this.plugin.settings.showSubtaskProgress);
+      card.description;
 
     if (hasBottom) {
       const bottomEl = cardEl.createDiv({ cls: "kanban-card-bottom" });
+
+      // Tags
+      for (const tag of card.metadata.tags) {
+        bottomEl.createEl("span", { text: `#${tag}`, cls: "kanban-tag" });
+      }
 
       // Assignees
       if (card.metadata.assignees.length > 0) {
@@ -199,31 +231,16 @@ export class KanbanView extends TextFileView {
             cls: "kanban-assignee-badge",
             attr: { title: person },
           });
-          badge.style.backgroundColor = `hsl(${hue}, 60%, 75%)`;
-          badge.style.color = `hsl(${hue}, 40%, 25%)`;
+          badge.style.backgroundColor = `hsl(${hue}, 50%, 88%)`;
+          badge.style.color = `hsl(${hue}, 40%, 35%)`;
         }
       }
 
-      // Due date
-      if (card.metadata.dueDate) {
-        const dueEl = bottomEl.createDiv({ cls: "kanban-card-due" });
-        const isOverdue =
-          new Date(card.metadata.dueDate) < new Date(new Date().toDateString());
-        if (isOverdue) dueEl.addClass("kanban-due-overdue");
-        dueEl.setText(`\uD83D\uDCC5 ${card.metadata.dueDate}`);
+      // Description indicator
+      if (card.description) {
+        const indicator = bottomEl.createDiv({ cls: "kanban-card-desc-indicator" });
+        indicator.innerHTML = `<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v1.5H2V3zm0 4h12v1.5H2V7zm0 4h8v1.5H2V11z"/></svg>`;
       }
-
-      // Subtask progress
-      if (card.subtasks.length > 0 && this.plugin.settings.showSubtaskProgress) {
-        const done = card.subtasks.filter((s) => s.completed).length;
-        const progressEl = bottomEl.createDiv({ cls: "kanban-card-progress" });
-        progressEl.setText(`\u2611 ${done}/${card.subtasks.length}`);
-      }
-    }
-
-    // Description indicator
-    if (card.description) {
-      cardEl.createDiv({ cls: "kanban-card-desc-indicator", text: "\uD83D\uDCDD" });
     }
 
     // Drag events
@@ -269,13 +286,11 @@ export class KanbanView extends TextFileView {
     if (!this.board) return;
 
     let card: KanbanCard | undefined;
-    let sourceColumn: KanbanColumn | undefined;
 
     for (const col of this.board.columns) {
       const idx = col.cards.findIndex((c) => c.id === cardId);
       if (idx >= 0) {
         card = col.cards[idx];
-        sourceColumn = col;
         col.cards.splice(idx, 1);
         break;
       }
@@ -299,37 +314,132 @@ export class KanbanView extends TextFileView {
 
   private addColumn(): void {
     if (!this.board) return;
-    const name = prompt("Column name:");
-    if (!name) return;
 
-    this.board.columns.push({
-      id: `col-new-${Date.now()}`,
-      heading: name,
-      cards: [],
+    // If there's already an input visible, focus it
+    const existing = this.boardEl.querySelector(".kanban-inline-input") as HTMLInputElement;
+    if (existing) { existing.focus(); return; }
+
+    this.isEditing = true;
+
+    const wrapper = this.boardEl.createDiv({ cls: "kanban-column kanban-inline-column" });
+    const input = wrapper.createEl("input", {
+      type: "text",
+      cls: "kanban-inline-input",
+      attr: { placeholder: "Column name..." },
     });
-    this.save();
+
+    // Focus after a tick to ensure DOM is ready
+    setTimeout(() => input.focus(), 10);
+
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      this.isEditing = false;
+      const name = input.value.trim();
+      wrapper.remove();
+      if (!name || !this.board) return;
+      this.board.columns.push({
+        id: `col-new-${Date.now()}`,
+        heading: name,
+        cards: [],
+      });
+      this.save();
+    };
+
+    const cancel = () => {
+      if (committed) return;
+      committed = true;
+      this.isEditing = false;
+      wrapper.remove();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener("blur", () => {
+      // Small delay so click events can fire first
+      setTimeout(() => { if (!committed) commit(); }, 100);
+    });
   }
 
   private addCard(column: KanbanColumn): void {
-    const title = prompt("Card title:");
-    if (!title) return;
+    // Find the column element
+    const allColEls = this.boardEl.querySelectorAll(".kanban-column");
+    let colEl: Element | null = null;
+    for (const el of Array.from(allColEls)) {
+      if ((el as HTMLElement).dataset.columnId === column.id) {
+        colEl = el;
+        break;
+      }
+    }
+    if (!colEl) return;
 
-    column.cards.push({
-      id: `card-new-${Date.now()}`,
-      rawTitle: title,
-      title,
-      description: "",
-      subtasks: [],
-      metadata: { tags: [], colorTags: [], assignees: [], dueDate: null },
+    // If there's already an input in this column, focus it
+    const existing = colEl.querySelector(".kanban-inline-card-input") as HTMLInputElement;
+    if (existing) { existing.focus(); return; }
+
+    this.isEditing = true;
+
+    // Create the input
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "kanban-inline-card-input";
+    input.placeholder = "Card title...";
+
+    // Insert before the add-card button
+    const addBtn = colEl.querySelector(".kanban-add-card-btn");
+    if (addBtn) {
+      colEl.insertBefore(input, addBtn);
+    } else {
+      colEl.appendChild(input);
+    }
+
+    setTimeout(() => input.focus(), 10);
+
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      this.isEditing = false;
+      const title = input.value.trim();
+      input.remove();
+      if (!title) return;
+      column.cards.push({
+        id: `card-new-${Date.now()}`,
+        rawTitle: title,
+        title,
+        description: "",
+        subtasks: [],
+        metadata: { tags: [], colorTags: [], assignees: [], dueDate: null },
+      });
+      this.save();
+    };
+
+    const cancel = () => {
+      if (committed) return;
+      committed = true;
+      this.isEditing = false;
+      input.remove();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
     });
-    this.save();
+    input.addEventListener("blur", () => {
+      setTimeout(() => { if (!committed) commit(); }, 100);
+    });
   }
 
   private editColumnTitle(titleEl: HTMLElement, column: KanbanColumn): void {
+    this.isEditing = true;
     titleEl.contentEditable = "true";
     titleEl.focus();
 
     const finish = () => {
+      this.isEditing = false;
       titleEl.contentEditable = "false";
       const newText = titleEl.textContent?.trim();
       if (newText && newText !== column.heading) {
@@ -367,10 +477,15 @@ export class KanbanView extends TextFileView {
     this.save();
   }
 
-  private toggleToMarkdown(): void {
+  private async toggleToMarkdown(): Promise<void> {
     if (!this.file) return;
+    // Persist current board state to disk before switching views
+    if (this.board) {
+      this.data = serializeKanban(this.board);
+      await this.app.vault.modify(this.file, this.data);
+    }
     const leaf = this.leaf;
-    leaf.setViewState({
+    await leaf.setViewState({
       type: "markdown",
       state: { file: this.file.path, mode: "source" },
     });
@@ -384,3 +499,4 @@ function hashStringToHue(str: string): number {
   }
   return Math.abs(hash) % 360;
 }
+

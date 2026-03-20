@@ -1,5 +1,5 @@
 /* ============================================
-   Surfacer Kanban — GitHub Projects-inspired
+   Surfacer Kanban — Clean minimal cards
    ============================================ */
 
 /* Container */
@@ -143,12 +143,11 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   padding: 4px 0;
   min-height: 40px;
 }
 
-/* Scrollbar styling */
 .kanban-column-cards::-webkit-scrollbar {
   width: 4px;
 }
@@ -158,20 +157,28 @@
   border-radius: 4px;
 }
 
-/* Cards */
+/* ============================================
+   Cards — matching reference image exactly:
+   - Generous rounded corners (16px)
+   - Subtle color gradient wash from left→right
+   - Solid accent left border (4px)
+   - Title in accent color, due date as gray subtitle
+   - Badge positioned top-right in accent color
+   - All colors via CSS custom props for dark/light theme
+   ============================================ */
 .kanban-card {
-  background: var(--background-primary);
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  cursor: grab;
-  border-left: 4px solid transparent;
-  transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
   position: relative;
+  border-radius: 16px;
+  padding: 16px 18px 14px 18px;
+  cursor: grab;
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid transparent;
+  background: var(--background-primary);
+  transition: box-shadow 0.2s ease, transform 0.15s;
 }
 
 .kanban-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 .kanban-card:active {
@@ -183,34 +190,77 @@
   transform: rotate(1.5deg);
 }
 
+/* ---- Colored card: gradient tint + accent border ---- */
 .kanban-card-colored {
-  border-left-width: 4px;
+  border-left-style: solid;
+  border-left-color: var(--card-border);
+  /* Gradient wash: accent color fades from ~10% on left to ~2% on right */
+  background: linear-gradient(
+    to right,
+    rgba(var(--card-r), var(--card-g), var(--card-b), 0.12),
+    rgba(var(--card-r), var(--card-g), var(--card-b), 0.03)
+  );
+  /* Remove top/right/bottom borders for a cleaner look */
+  border-top-color: rgba(var(--card-r), var(--card-g), var(--card-b), 0.08);
+  border-right-color: rgba(var(--card-r), var(--card-g), var(--card-b), 0.08);
+  border-bottom-color: rgba(var(--card-r), var(--card-g), var(--card-b), 0.08);
 }
 
+/* Title — accent colored when card has color */
 .kanban-card-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-normal);
   line-height: 1.4;
   word-break: break-word;
 }
 
-/* Tags */
-.kanban-card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 8px;
+.kanban-card-colored .kanban-card-title {
+  color: var(--card-title-light);
 }
 
-.kanban-tag {
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 12px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  opacity: 0.85;
-  font-weight: 500;
+.theme-dark .kanban-card-colored .kanban-card-title {
+  color: var(--card-title-dark);
+}
+
+/* Due date — subtitle below title, muted */
+.kanban-card-due {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.kanban-card-colored .kanban-card-due {
+  color: rgba(var(--card-r), var(--card-g), var(--card-b), 0.6);
+}
+
+.theme-dark .kanban-card-colored .kanban-card-due {
+  color: rgba(var(--card-r), var(--card-g), var(--card-b), 0.45);
+}
+
+.kanban-due-overdue {
+  color: var(--text-error) !important;
+  font-weight: 600;
+}
+
+/* Badge — top right, accent colored (like "1h" in reference) */
+.kanban-card-badge {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.kanban-card-colored .kanban-card-badge {
+  color: var(--card-title-light);
+}
+
+.theme-dark .kanban-card-colored .kanban-card-badge {
+  color: var(--card-title-dark);
 }
 
 /* Bottom row */
@@ -222,10 +272,29 @@
   flex-wrap: wrap;
 }
 
-/* Assignee badges */
+/* Tags */
+.kanban-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.kanban-card-colored .kanban-tag {
+  background: rgba(var(--card-r), var(--card-g), var(--card-b), 0.12);
+  color: var(--card-title-light);
+}
+
+.theme-dark .kanban-card-colored .kanban-tag {
+  color: var(--card-title-dark);
+}
+
+/* Assignees — pushed right */
 .kanban-card-assignees {
   display: flex;
-  gap: -4px;
+  margin-left: auto;
 }
 
 .kanban-assignee-badge {
@@ -246,30 +315,17 @@
   margin-left: 0;
 }
 
-/* Due date */
-.kanban-card-due {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.kanban-due-overdue {
-  color: var(--text-error);
-  font-weight: 600;
-}
-
-/* Subtask progress */
-.kanban-card-progress {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
 /* Description indicator */
 .kanban-card-desc-indicator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
   opacity: 0.4;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.kanban-card-colored .kanban-card-desc-indicator {
+  color: var(--card-border);
 }
 
 /* Add card button */
@@ -279,7 +335,7 @@
   margin-top: 4px;
   background: transparent;
   border: 1px dashed var(--background-modifier-border);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
@@ -290,6 +346,26 @@
   background: var(--background-modifier-hover);
   color: var(--text-normal);
   border-color: var(--text-muted);
+}
+
+/* Inline inputs */
+.kanban-inline-input,
+.kanban-inline-card-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 10px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+}
+
+.kanban-inline-column {
+  justify-content: flex-start;
+  padding: 12px;
 }
 
 /* Drop indicators */
