@@ -18,6 +18,7 @@ export class KanbanView extends TextFileView {
   private toolbarEl!: HTMLElement;
   private didDrag = false;
   private isEditing = false; // Prevents re-render while user is typing
+  private collapsedColumns: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf, plugin: SurfacerKanbanPlugin) {
     super(leaf);
@@ -113,8 +114,33 @@ export class KanbanView extends TextFileView {
   }
 
   private renderColumn(column: KanbanColumn): void {
-    const colEl = this.boardEl.createDiv({ cls: "kanban-column" });
+    const isCollapsed = this.collapsedColumns.has(column.id);
+    const colEl = this.boardEl.createDiv({
+      cls: `kanban-column ${isCollapsed ? "kanban-column-collapsed" : ""}`,
+    });
     colEl.dataset.columnId = column.id;
+
+    // Collapsed view — vertical strip with title and count
+    if (isCollapsed) {
+      const collapsedBar = colEl.createDiv({ cls: "kanban-collapsed-bar" });
+      const expandBtn = collapsedBar.createEl("button", {
+        cls: "kanban-collapse-btn",
+      });
+      expandBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+      expandBtn.addEventListener("click", () => {
+        this.collapsedColumns.delete(column.id);
+        this.renderBoard();
+      });
+      collapsedBar.createEl("span", {
+        text: String(column.cards.length),
+        cls: "kanban-column-count",
+      });
+      collapsedBar.createEl("span", {
+        text: column.heading,
+        cls: "kanban-collapsed-title",
+      });
+      return;
+    }
 
     // Header — draggable for column reordering
     const headerEl = colEl.createDiv({ cls: "kanban-column-header" });
@@ -129,6 +155,18 @@ export class KanbanView extends TextFileView {
     });
 
     const titleRow = headerEl.createDiv({ cls: "kanban-column-title-row" });
+
+    // Collapse button
+    const collapseBtn = titleRow.createEl("button", {
+      cls: "kanban-collapse-btn",
+    });
+    collapseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+    collapseBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.collapsedColumns.add(column.id);
+      this.renderBoard();
+    });
+
     const dragHandle = titleRow.createEl("span", {
       cls: "kanban-column-drag-handle",
     });
