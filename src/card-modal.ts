@@ -68,17 +68,28 @@ export class CardDetailModal extends Modal {
           })
       );
 
-    new Setting(metaEl)
-      .setName("Due date")
-      .addText((text) =>
-        text
-          .setValue(this.card.metadata.dueDate ?? "")
-          .setPlaceholder("YYYY-MM-DD")
-          .onChange((val) => {
-            this.card.metadata.dueDate =
-              val.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
-          })
-      );
+    // Due date — native date picker
+    const dueSetting = new Setting(metaEl).setName("Due date");
+    const dateInput = dueSetting.controlEl.createEl("input", {
+      type: "date",
+      cls: "kanban-date-input",
+      value: this.card.metadata.dueDate ?? "",
+    });
+    dateInput.addEventListener("change", () => {
+      this.card.metadata.dueDate = dateInput.value || null;
+    });
+    // Clear button
+    if (this.card.metadata.dueDate) {
+      const clearBtn = dueSetting.controlEl.createEl("button", {
+        text: "✕",
+        cls: "kanban-date-clear-btn",
+      });
+      clearBtn.addEventListener("click", () => {
+        dateInput.value = "";
+        this.card.metadata.dueDate = null;
+        clearBtn.remove();
+      });
+    }
 
     new Setting(metaEl)
       .setName("Color")
