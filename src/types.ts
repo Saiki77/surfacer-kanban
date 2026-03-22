@@ -45,6 +45,7 @@ export interface KanbanSettings {
   defaultColumns: string[];
   showSubtaskProgress: boolean;
   colorPresets: Record<string, string>;
+  cardBorderRadius: number;
 }
 
 export const COLOR_PALETTES: Record<string, ColorPalette> = {
@@ -61,6 +62,7 @@ export const COLOR_PALETTES: Record<string, ColorPalette> = {
 export const DEFAULT_SETTINGS: KanbanSettings = {
   defaultColumns: ["Backlog", "In Progress", "Done"],
   showSubtaskProgress: true,
+  cardBorderRadius: 16,
   colorPresets: {
     red: "#fecaca",
     orange: "#fed7aa",

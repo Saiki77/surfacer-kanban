@@ -41,5 +41,19 @@ export class KanbanSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Card border radius")
+      .setDesc("How rounded the card corners are (0 = square, 24 = very round)")
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 24, 1)
+          .setValue(this.plugin.settings.cardBorderRadius)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.cardBorderRadius = val;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }

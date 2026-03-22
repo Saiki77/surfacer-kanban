@@ -168,7 +168,7 @@
    ============================================ */
 .kanban-card {
   position: relative;
-  border-radius: 16px;
+  border-radius: var(--card-border-radius, 16px);
   padding: 16px 18px 14px 18px;
   cursor: grab;
   border: 1px solid var(--background-modifier-border);
@@ -368,7 +368,47 @@
   padding: 12px;
 }
 
-/* Drop indicators */
+/* Column drag handle */
+.kanban-column-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-faint);
+  cursor: grab;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.kanban-column:hover .kanban-column-drag-handle {
+  opacity: 1;
+}
+
+.kanban-column-drag-handle:hover {
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+
+.kanban-column-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Column dragging */
+.kanban-column-dragging {
+  opacity: 0.3;
+}
+
+/* Column drop indicators */
+.kanban-column-drop-before {
+  box-shadow: -3px 0 0 0 var(--interactive-accent);
+}
+
+.kanban-column-drop-after {
+  box-shadow: 3px 0 0 0 var(--interactive-accent);
+}
+
+/* Card drop indicators */
 .kanban-drop-before {
   box-shadow: 0 -2px 0 0 var(--interactive-accent);
 }

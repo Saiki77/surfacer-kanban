@@ -8,7 +8,7 @@ import {
 } from "./types";
 import { parseKanban, serializeKanban } from "./parser";
 import { CardDetailModal } from "./card-modal";
-import { setupColumnDragDrop } from "./drag-drop";
+import { setupColumnDragDrop, setupBoardColumnDragDrop } from "./drag-drop";
 import type SurfacerKanbanPlugin from "./main";
 
 export class KanbanView extends TextFileView {
@@ -94,20 +94,45 @@ export class KanbanView extends TextFileView {
 
   renderBoard(): void {
     if (!this.boardEl || !this.board) return;
+    // Don't re-render if user is actively editing an input
+    if (this.isEditing) return;
     this.boardEl.empty();
+
+    // Apply card border-radius setting
+    this.boardEl.style.setProperty(
+      "--card-border-radius",
+      `${this.plugin.settings.cardBorderRadius}px`
+    );
 
     for (const column of this.board.columns) {
       this.renderColumn(column);
     }
+
+    // Setup column reordering drag-drop on the board
+    setupBoardColumnDragDrop(this.boardEl, this);
   }
 
   private renderColumn(column: KanbanColumn): void {
     const colEl = this.boardEl.createDiv({ cls: "kanban-column" });
     colEl.dataset.columnId = column.id;
 
-    // Header
+    // Header — draggable for column reordering
     const headerEl = colEl.createDiv({ cls: "kanban-column-header" });
+    headerEl.draggable = true;
+    headerEl.addEventListener("dragstart", (e) => {
+      e.dataTransfer?.setData("application/kanban-column", column.id);
+      e.dataTransfer!.effectAllowed = "move";
+      setTimeout(() => colEl.addClass("kanban-column-dragging"), 0);
+    });
+    headerEl.addEventListener("dragend", () => {
+      colEl.removeClass("kanban-column-dragging");
+    });
+
     const titleRow = headerEl.createDiv({ cls: "kanban-column-title-row" });
+    const dragHandle = titleRow.createEl("span", {
+      cls: "kanban-column-drag-handle",
+    });
+    dragHandle.innerHTML = `<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/><circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/><circle cx="5" cy="13" r="1.5"/><circle cx="11" cy="13" r="1.5"/></svg>`;
     const titleEl = titleRow.createEl("h3", {
       text: column.heading,
       cls: "kanban-column-title",
@@ -276,6 +301,19 @@ export class KanbanView extends TextFileView {
     }
     this.requestSave();
     this.renderBoard();
+  }
+
+  moveColumn(columnId: string, targetIndex: number): void {
+    if (!this.board) return;
+    const idx = this.board.columns.findIndex((c) => c.id === columnId);
+    if (idx < 0) return;
+    const [col] = this.board.columns.splice(idx, 1);
+    if (targetIndex < 0 || targetIndex >= this.board.columns.length) {
+      this.board.columns.push(col);
+    } else {
+      this.board.columns.splice(targetIndex, 0, col);
+    }
+    this.save();
   }
 
   moveCard(
