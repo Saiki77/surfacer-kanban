@@ -19,6 +19,7 @@ export class KanbanView extends TextFileView {
   private didDrag = false;
   private isEditing = false; // Prevents re-render while user is typing
   private collapsedColumns: Set<string> = new Set();
+  private renderQueued = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: SurfacerKanbanPlugin) {
     super(leaf);
@@ -61,6 +62,12 @@ export class KanbanView extends TextFileView {
   }
 
   async onClose(): Promise<void> {
+    // Flush any pending board state to disk before destroying the view
+    if (this.board && this.file) {
+      this.isEditing = false; // Clear editing lock so serialization proceeds
+      this.data = serializeKanban(this.board);
+      await this.app.vault.modify(this.file, this.data);
+    }
     this.contentEl.empty();
   }
 
@@ -334,11 +341,23 @@ export class KanbanView extends TextFileView {
   // --- Mutations ---
 
   save(): void {
-    if (this.board) {
-      this.data = serializeKanban(this.board);
+    if (!this.board) return;
+    this.data = serializeKanban(this.board);
+    // Write to disk immediately — requestSave is debounced and may be lost on close
+    if (this.file) {
+      this.app.vault.modify(this.file, this.data);
     }
-    this.requestSave();
-    this.renderBoard();
+    this.queueRender();
+  }
+
+  /** Coalesce multiple rapid saves into a single rAF render pass */
+  private queueRender(): void {
+    if (this.renderQueued) return;
+    this.renderQueued = true;
+    requestAnimationFrame(() => {
+      this.renderQueued = false;
+      this.renderBoard();
+    });
   }
 
   moveColumn(columnId: string, targetIndex: number): void {
