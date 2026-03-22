@@ -114,4 +114,4 @@ The LLM reads and writes the same markdown you see in the visual board. No trans
 
 ## License
 
-MIT
+Creative Commons Attribution-NonCommercial 4.0 International
